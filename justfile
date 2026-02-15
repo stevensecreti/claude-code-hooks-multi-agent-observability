@@ -4,8 +4,8 @@
 set dotenv-load
 set quiet
 
-server_port := env("SERVER_PORT", "4000")
-client_port := env("CLIENT_PORT", "5173")
+server_port := env("SERVER_PORT", "47200")
+client_port := env("CLIENT_PORT", "47201")
 project_root := justfile_directory()
 
 # List available recipes
@@ -25,7 +25,7 @@ stop:
 # Stop then start
 restart: stop start
 
-# ─── Server (Bun, port 4000) ────────────────────────────
+# ─── Server (Bun, port 47200) ────────────────────────────
 
 # Install server dependencies
 server-install:
@@ -43,7 +43,7 @@ server-prod:
 server-typecheck:
     cd {{project_root}}/apps/server && bun run typecheck
 
-# ─── Client (Vue + Vite, port 5173) ─────────────────────
+# ─── Client (Vue + Vite, port 47201) ─────────────────────
 
 # Install client dependencies
 client-install:
@@ -112,3 +112,9 @@ hooks:
 # Open the client dashboard in browser
 open:
     open http://localhost:{{client_port}}
+
+# ─── Setup ──────────────────────────────────────────────
+
+# Add observability hooks to another project
+setup target *args:
+    ./scripts/setup.sh {{target}} {{args}}

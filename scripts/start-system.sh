@@ -16,8 +16,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Read ports from environment variables or use defaults
-SERVER_PORT=${SERVER_PORT:-4000}
-CLIENT_PORT=${CLIENT_PORT:-5173}
+SERVER_PORT=${SERVER_PORT:-47200}
+CLIENT_PORT=${CLIENT_PORT:-47201}
 
 echo -e "${BLUE}Configuration:${NC}"
 echo -e "  Server Port: ${GREEN}$SERVER_PORT${NC}"
