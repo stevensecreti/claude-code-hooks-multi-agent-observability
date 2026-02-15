@@ -1,11 +1,63 @@
 ---
 name: improve-next
-description: Picks the next pending fork improvement from PENDING_FORK_IMPROVEMENTS.md, interviews the user about ambiguities, plans the implementation with a Sonnet 4.5 agent team, implements it, validates, commits, and moves the completed item to FORK_IMPROVEMENTS.md. Use when user says "improve-next", "next improvement", or "implement next pending improvement".
+description: Picks the next pending fork improvement from PENDING_FORK_IMPROVEMENTS.md, interviews the user about ambiguities, plans the implementation with an agent team, implements it, validates, commits, and moves the completed item to FORK_IMPROVEMENTS.md. Use when user says "improve-next", "next improvement", or "implement next pending improvement".
 ---
 
 # Improve Next
 
 Implements the next queued improvement from `PENDING_FORK_IMPROVEMENTS.md` using a structured workflow: interview, plan, implement with an agent team, validate, commit, and archive.
+
+## Agent Team Rules
+
+These rules govern how agent teams are structured and operated throughout this skill.
+
+### When and Why to Use Teams
+
+Use teams generously to maximize implementation efficiency through parallel work. However, do not use them recklessly — the goal is faster, high-quality output, not an outrageous volume of generated code. If a task is small enough for one agent to handle sequentially, a team is overkill.
+
+### Task Decomposition
+
+Slice the implementation objective into **actionable, dead-simple subtasks** that worker agents can own end-to-end. Each subtask should be self-contained — a worker should be able to complete it without needing the overarching context the team lead holds. Maximize the number of tasks that can run in parallel.
+
+### Team Lead Role
+
+The main agent acts as team lead. Responsibilities:
+- Distribute tasks to workers and assign ownership
+- Monitor progress and ensure work is high-quality and timely
+- Hold the full implementation context — workers only get what they need
+- Make all implementation decisions (see "Decision Escalation" below)
+- Resolve conflicts between workers' outputs
+- Validate and integrate all completed work
+
+### Worker Configuration
+
+Match worker model to task complexity:
+- **Trivial / dead-simple tasks** → Sonnet 4.5 (`model: "sonnet"`) — file renames, config updates, simple CRUD, boilerplate
+- **Complex / thought-intensive tasks** → Opus 4.6 (`model: "opus"`) — architectural changes, tricky refactors, multi-file coordination with subtle interdependencies
+
+All workers should use `subagent_type: "builder"` unless the task is read-only verification (use `subagent_type: "validator"`).
+
+### Worker Context
+
+Give workers:
+- The specific files they need to read and modify
+- Enough high-level intent to understand *why* they're making the change
+- Clear acceptance criteria for when the task is done
+
+Do NOT give workers:
+- The full implementation plan or conversation history
+- Context about other workers' tasks (unless there's a direct dependency)
+- Low-level details beyond their specific subtask
+
+### Worker Behavior
+
+Workers should complete their assigned task and finish — nothing more. No unsolicited refactoring, no "improvements" beyond scope, no exploratory work.
+
+### Decision Escalation
+
+**Workers must never make implementation decisions on their own.** If a worker encounters an ambiguity, oversight in the plan, or a choice point during implementation, they must send a message to the team lead asking for guidance. The team lead holds the full context and makes all decisions.
+
+---
 
 ## Instructions
 
@@ -96,13 +148,14 @@ PENDING_FORK_IMPROVEMENTS.md here.]
 
 ## Team Structure
 
-- **Team lead**: Coordinates workers, validates output, resolves conflicts
-- **Worker 1**: [Task assignment]
-- **Worker 2**: [Task assignment]
+- **Team lead**: Coordinates workers, validates output, makes all decisions
+- **Worker 1**: [Task assignment] — [sonnet/opus based on complexity]
+- **Worker 2**: [Task assignment] — [sonnet/opus based on complexity]
 - ...
 
-Workers should be Sonnet 4.5 (`model: "sonnet"`) agents of type `builder`.
-Parallelize independent tasks. Use `validator` agents for read-only verification.
+Assign worker models per the Agent Team Rules above: Sonnet 4.5 for trivial tasks,
+Opus 4.6 for complex ones. Maximize parallel work. Use `validator` agents for
+read-only verification steps.
 
 ## Validation Checklist
 
@@ -140,11 +193,12 @@ After the user approves the plan (via `ExitPlanMode`), the plan will be executed
 
 1. **Create the team** using `TeamCreate`
 2. **Create tasks** from the plan using `TaskCreate` with proper `addBlockedBy` dependencies
-3. **Spawn Sonnet 4.5 builder agents** using `Task` with `subagent_type: "builder"`, `model: "sonnet"`, and `team_name` set to the team
-4. **Assign tasks** to workers via `TaskUpdate` with `owner`
-5. **Monitor progress** — validate each worker's output as tasks complete
-6. **Resolve conflicts** — if workers produce conflicting changes, coordinate fixes
-7. **Run validation checklist** — all items must pass before proceeding
+3. **Spawn worker agents** using `Task` with `subagent_type: "builder"` and `team_name` — choose `model: "sonnet"` for trivial tasks or `model: "opus"` for complex ones per the Agent Team Rules
+4. **Give each worker only what it needs** — the files to touch, the acceptance criteria, and enough high-level intent to understand the "why". Do not dump the full plan into worker prompts.
+5. **Assign tasks** to workers via `TaskUpdate` with `owner`
+6. **Monitor progress** — validate each worker's output as tasks complete. Workers that hit decision points should message the team lead rather than deciding on their own.
+7. **Resolve conflicts** — if workers produce conflicting changes, coordinate fixes
+8. **Run validation checklist** — all items must pass before proceeding
 
 ### Step 6: Validate
 
