@@ -1,6 +1,6 @@
 # Pending Fork Improvements
 
-## 1. Server: Bun → pnpm
+## Server: Bun → pnpm
 
 Migrate `apps/server/` from `bun install` to `pnpm install` for consistency with the client. Bun remains the runtime (`bun run dev`), but dependency management unifies under pnpm.
 
@@ -12,7 +12,7 @@ Migrate `apps/server/` from `bun install` to `pnpm install` for consistency with
 - Update `apps/server/CLAUDE.md` to reflect pnpm for deps, bun for runtime
 - Replace `bun:sqlite` with a portable SQLite package (see next item) since `bun:sqlite` is bun-runtime-only
 
-## 2. Database: SQLite → MongoDB (Docker)
+## Database: SQLite → MongoDB (Docker)
 
 Current: `bun:sqlite` with a single `events.db` file. Payloads stored as JSON text in a `TEXT` column, parsed on read.
 
@@ -34,7 +34,7 @@ Current: `bun:sqlite` with a single `events.db` file. Payloads stored as JSON te
 - Update `scripts/ensure-running.sh` to health-check MongoDB before server start
 - Move chart-data time-bucket aggregation from client hook to a server `/api/chart-data` endpoint using `$bucket`
 
-## 3. UI Enhancements
+## UI Enhancements
 
 Issues observed during the React migration:
 
