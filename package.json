@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-hooks-multi-agent-observability",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm run dev:server\" \"pnpm run dev:client\"",
+    "dev:server": "cd apps/server && bun run dev",
+    "dev:client": "cd apps/client && pnpm run dev",
+    "build": "cd apps/client && pnpm run build",
+    "install:all": "pnpm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -43,23 +43,23 @@ server-prod:
 server-typecheck:
     cd {{project_root}}/apps/server && bun run typecheck
 
-# ─── Client (Vue + Vite, port 47201) ─────────────────────
+# ─── Client (React + Chakra UI v3 + Vite, port 47201) ────
 
 # Install client dependencies
 client-install:
-    cd {{project_root}}/apps/client && bun install
+    cd {{project_root}}/apps/client && pnpm install
 
 # Start client dev server
 client:
-    cd {{project_root}}/apps/client && VITE_PORT={{client_port}} bun run dev
+    cd {{project_root}}/apps/client && VITE_PORT={{client_port}} pnpm run dev
 
 # Build client for production
 client-build:
-    cd {{project_root}}/apps/client && bun run build
+    cd {{project_root}}/apps/client && pnpm run build
 
 # Preview production build
 client-preview:
-    cd {{project_root}}/apps/client && bun run preview
+    cd {{project_root}}/apps/client && pnpm run preview
 
 # ─── Install ─────────────────────────────────────────────
 

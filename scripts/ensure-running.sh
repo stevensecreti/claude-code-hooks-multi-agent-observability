@@ -47,7 +47,7 @@ if [ ! -d "$REPO_ROOT/apps/server/node_modules" ]; then
 fi
 if [ ! -d "$REPO_ROOT/apps/client/node_modules" ]; then
     echo "[$(date)] Installing client dependencies..." >> "$LOGFILE"
-    cd "$REPO_ROOT/apps/client" && bun install >> "$LOGFILE" 2>&1
+    cd "$REPO_ROOT/apps/client" && pnpm install >> "$LOGFILE" 2>&1
 fi
 
 # Start server
@@ -56,9 +56,9 @@ SERVER_PORT=$SERVER_PORT nohup bun run dev >> "$LOGFILE" 2>&1 &
 SERVER_PID=$!
 echo "$SERVER_PID" > "$PIDFILE"
 
-# Start client (use bunx to ensure vite is found via node_modules)
+# Start client (pnpm for deps, vite for dev server)
 cd "$REPO_ROOT/apps/client"
-VITE_PORT=$CLIENT_PORT nohup bun run dev >> "$LOGFILE" 2>&1 &
+VITE_PORT=$CLIENT_PORT nohup pnpm run dev >> "$LOGFILE" 2>&1 &
 CLIENT_PID=$!
 echo "$CLIENT_PID" >> "$PIDFILE"
 
