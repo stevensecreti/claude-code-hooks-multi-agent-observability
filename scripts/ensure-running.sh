@@ -43,7 +43,7 @@ echo "[$(date)] Starting observability system..." > "$LOGFILE"
 # Ensure dependencies are installed
 if [ ! -d "$REPO_ROOT/apps/server/node_modules" ]; then
     echo "[$(date)] Installing server dependencies..." >> "$LOGFILE"
-    cd "$REPO_ROOT/apps/server" && bun install >> "$LOGFILE" 2>&1
+    cd "$REPO_ROOT/apps/server" && pnpm install >> "$LOGFILE" 2>&1
 fi
 if [ ! -d "$REPO_ROOT/apps/client/node_modules" ]; then
     echo "[$(date)] Installing client dependencies..." >> "$LOGFILE"

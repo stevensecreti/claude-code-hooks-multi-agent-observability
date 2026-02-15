@@ -29,7 +29,7 @@ restart: stop start
 
 # Install server dependencies
 server-install:
-    cd {{project_root}}/apps/server && bun install
+    cd {{project_root}}/apps/server && pnpm install
 
 # Start server in dev mode (watch)
 server:

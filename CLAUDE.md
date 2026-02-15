@@ -32,6 +32,6 @@ Run `./scripts/setup.sh /path/to/project`. This writes hooks to the target's `.c
 ### Known Gotchas
 
 - Paths with spaces (e.g. `VSCode Projects`) must be quoted in hook commands. `setup.sh` handles this automatically.
-- `ensure-running.sh` runs `pnpm install` (client) / `bun install` (server) if `node_modules` is missing — first auto-start may be slow.
+- `ensure-running.sh` runs `pnpm install` if `node_modules` is missing — first auto-start may be slow.
 - The client "Clear events" button is UI-only. Events persist in SQLite.
 - `apps/demo-cc-agent/` was removed — use `setup.sh` instead.
