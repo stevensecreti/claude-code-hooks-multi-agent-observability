@@ -75,7 +75,7 @@ done
 # Start server
 echo -e "\n${GREEN}Starting server on port $SERVER_PORT...${NC}"
 cd "$PROJECT_ROOT/apps/server"
-SERVER_PORT=$SERVER_PORT bun run dev &
+SERVER_PORT=$SERVER_PORT pnpm run dev &
 SERVER_PID=$!
 
 # Wait for server to be ready
@@ -91,7 +91,7 @@ done
 # Start client
 echo -e "\n${GREEN}Starting client on port $CLIENT_PORT...${NC}"
 cd "$PROJECT_ROOT/apps/client"
-VITE_PORT=$CLIENT_PORT bun run dev &
+VITE_PORT=$CLIENT_PORT pnpm run dev &
 CLIENT_PID=$!
 
 # Wait for client to be ready

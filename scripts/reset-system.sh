@@ -55,11 +55,11 @@ kill_port $SERVER_PORT "server"
 # Kill client dev server
 kill_port $CLIENT_PORT "client"
 
-# Kill any remaining bun processes related to our apps
-echo -e "\n${YELLOW}Checking for remaining bun processes...${NC}"
-ps aux | grep -E "bun.*(apps/(server|client))" | grep -v grep | awk '{print $2}' | while read PID; do
+# Kill any remaining node processes related to our apps
+echo -e "\n${YELLOW}Checking for remaining node processes...${NC}"
+ps aux | grep -E "(tsx|node).*(apps/server)" | grep -v grep | awk '{print $2}' | while read PID; do
     if [ -n "$PID" ]; then
-        kill -9 $PID 2>/dev/null && echo -e "${GREEN}✅ Killed bun process $PID${NC}"
+        kill -9 $PID 2>/dev/null && echo -e "${GREEN}Killed node process $PID${NC}"
     fi
 done
 
@@ -91,5 +91,5 @@ fi
 echo -e "\n${GREEN}🎉 System reset complete!${NC}"
 echo -e "\nTo start fresh:"
 echo "1. Run ./scripts/start-system.sh to start both server and client"
-echo "2. Or manually: cd apps/server && bun run dev"
-echo "3. And: cd apps/client && bun run dev"
+echo "2. Or manually: cd apps/server && pnpm run dev"
+echo "3. And: cd apps/client && pnpm run dev"

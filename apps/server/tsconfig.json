@@ -20,7 +20,7 @@
     "noPropertyAccessFromIndexSignature": false,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["bun-types"],
+    "types": ["node"],
     "paths": {
       "@/*": ["./src/*"]
     }

@@ -8,7 +8,7 @@ alwaysApply: false
 
 pnpm workspace monorepo. `pnpm install` at the repo root.
 
-> **Note:** The server currently uses `Bun.serve()` as a legacy of the original codebase. This is slated for migration to a standard Node.js runtime. Do not introduce new Bun-specific APIs.
+The server runs on Node.js via tsx (TypeScript execution). Hono handles HTTP routing and WebSocket support.
 
 ## Database
 

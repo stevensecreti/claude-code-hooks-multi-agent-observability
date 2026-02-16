@@ -1,17 +1,5 @@
 # Pending Fork Improvements
 
-## Server Runtime: Bun → Node.js
-
-The server currently uses `Bun.serve()` and Bun-specific APIs inherited from the original codebase. Migrate to standard Node.js runtime.
-
-**Scope:**
-
-- Replace `Bun.serve()` with a standard HTTP server (e.g. native `node:http` or Hono)
-- Replace `bun --watch` with `tsx --watch` or similar
-- Update `package.json` scripts, `justfile`, and startup scripts
-- Remove `@types/bun` dev dependency
-- Ensure WebSocket support works without Bun built-ins
-
 ## Server Test Suite
 
 No tests exist yet. Add test coverage for:

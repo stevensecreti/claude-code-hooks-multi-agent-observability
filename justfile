@@ -25,7 +25,7 @@ stop:
 # Stop then start
 restart: stop start
 
-# ─── Server (Bun, port 47200) ────────────────────────────
+# ─── Server (Node.js, port 47200) ────────────────────────
 
 # Install server dependencies
 server-install:
@@ -33,15 +33,15 @@ server-install:
 
 # Start server in dev mode (watch)
 server:
-    cd {{project_root}}/apps/server && SERVER_PORT={{server_port}} bun run dev
+    cd {{project_root}}/apps/server && SERVER_PORT={{server_port}} pnpm run dev
 
 # Start server in production mode
 server-prod:
-    cd {{project_root}}/apps/server && SERVER_PORT={{server_port}} bun run start
+    cd {{project_root}}/apps/server && SERVER_PORT={{server_port}} pnpm run start
 
 # Typecheck server
 server-typecheck:
-    cd {{project_root}}/apps/server && bun run typecheck
+    cd {{project_root}}/apps/server && pnpm run typecheck
 
 # ─── Client (React + Chakra UI v3 + Vite, port 47201) ────
 

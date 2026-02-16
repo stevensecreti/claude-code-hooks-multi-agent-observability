@@ -56,7 +56,7 @@ docker compose -f "$REPO_ROOT/docker-compose.yml" up -d >> "$LOGFILE" 2>&1
 
 # Start server
 cd "$REPO_ROOT/apps/server"
-SERVER_PORT=$SERVER_PORT nohup bun run dev >> "$LOGFILE" 2>&1 &
+SERVER_PORT=$SERVER_PORT nohup pnpm run dev >> "$LOGFILE" 2>&1 &
 SERVER_PID=$!
 echo "$SERVER_PID" > "$PIDFILE"
 

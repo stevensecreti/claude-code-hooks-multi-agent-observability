@@ -170,7 +170,7 @@ export async function getTheme(id: string): Promise<Theme | null> {
   if (!row) return null;
 
   return {
-    id: row._id as string,
+    id: String(row._id),
     name: row.name,
     displayName: row.displayName,
     description: row.description,
@@ -232,7 +232,7 @@ export async function getThemes(query: ThemeSearchQuery = {}): Promise<Theme[]> 
   const rows = await cursor.toArray();
 
   return rows.map(row => ({
-    id: row._id as string,
+    id: String(row._id),
     name: row.name,
     displayName: row.displayName,
     description: row.description,
@@ -372,7 +372,9 @@ export async function getChartData(range: string, agentId?: string): Promise<Cha
 
 export function isConnected(): boolean {
   try {
-    return client !== undefined && client.topology !== undefined && client.topology.isConnected();
+    // MongoClient.topology is internal but the only sync way to check connectivity
+    const c = client as { topology?: { isConnected(): boolean } } | undefined;
+    return c !== undefined && c.topology !== undefined && c.topology.isConnected();
   } catch {
     return false;
   }

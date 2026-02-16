@@ -7,7 +7,7 @@
 - **Framework:** Vue 3 Composition API → React 19 with hooks
 - **Styling:** Tailwind CSS → Chakra UI v3 semantic tokens + CSS custom properties
 - **Charts:** Custom canvas renderer → Recharts + `@chakra-ui/charts`
-- **Package manager (client):** Bun → pnpm (server still runs on Bun runtime)
+- **Package manager (client):** Bun → pnpm
 - **Workspace:** Added pnpm workspace monorepo (`pnpm-workspace.yaml` + root `package.json`)
 
 ### What Was Migrated
@@ -39,7 +39,7 @@
 
 ## Server Dependency Management: Bun → pnpm
 
-Unified dependency management across the monorepo under pnpm. Bun remains the server runtime.
+Unified dependency management across the monorepo under pnpm.
 
 ### Changes
 
@@ -47,10 +47,6 @@ Unified dependency management across the monorepo under pnpm. Bun remains the se
 - Removed `apps/server/bun.lock` (pnpm workspace lockfile at root covers server)
 - Updated `apps/server/CLAUDE.md` to reflect pnpm for deps, bun for runtime
 - `pnpm-workspace.yaml` already included `apps/*` — now actively used for server deps
-
-### What Didn't Change
-
-- `bun run dev` / `bun run start` remain the server runtime commands
 
 ## Database: SQLite → MongoDB (Docker)
 
@@ -85,3 +81,27 @@ Replaced `bun:sqlite` with the native `mongodb` driver. MongoDB runs in Docker v
 - `bun:sqlite` import, all SQLite schema migrations, WAL/PRAGMA config
 - `sqlite`/`sqlite3` deps from package.json
 - `events.db` / `events.db-wal` / `events.db-shm` (gitignored, local artifacts)
+
+## Server Runtime: Bun → Node.js (Hono + tsx)
+
+Replaced `Bun.serve()` and all Bun-specific APIs with standard Node.js runtime.
+
+### Stack Changes
+
+- **HTTP framework:** `Bun.serve()` → Hono + `@hono/node-server`
+- **WebSocket:** Bun built-in WebSocket → `@hono/node-ws` (uses `ws` under the hood)
+- **TypeScript execution:** `bun` / `bun --watch` → `tsx` / `tsx --watch`
+- **Types:** `@types/bun` / `bun-types` → `@types/node`
+
+### What Changed
+
+- `apps/server/src/index.ts` — full rewrite: `Bun.serve()` → Hono routes with `cors()` middleware, `createNodeWebSocket()` for WebSocket, `serve()` from `@hono/node-server`, `WebSocket` import from `ws` for HITL agent communication
+- `apps/server/package.json` — added `hono`, `@hono/node-server`, `@hono/node-ws`, `ws`, `tsx`, `@types/node`; removed `@types/bun`, `module` field; updated scripts to use `tsx`
+- `apps/server/tsconfig.json` — `"types": ["bun-types"]` → `"types": ["node"]`
+- `apps/server/src/db.ts` — fixed type casts for `@types/node` compatibility (`String(row._id)`, typed topology access)
+- `apps/server/src/theme.ts` — typed `tag` parameter as `unknown` instead of implicit `any`
+- `scripts/ensure-running.sh` — `bun run dev` → `pnpm run dev`
+- `scripts/start-system.sh` — `bun run dev` → `pnpm run dev` (server and client)
+- `scripts/reset-system.sh` — process cleanup looks for `tsx`/`node` instead of `bun`; manual instructions updated
+- `justfile` — all server recipes use `pnpm run` instead of `bun run`; section comment updated
+- `apps/server/CLAUDE.md` — updated to reflect Node.js/Hono/tsx runtime
