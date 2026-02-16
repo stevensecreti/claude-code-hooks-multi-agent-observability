@@ -82,6 +82,33 @@ Replaced `bun:sqlite` with the native `mongodb` driver. MongoDB runs in Docker v
 - `sqlite`/`sqlite3` deps from package.json
 - `events.db` / `events.db-wal` / `events.db-shm` (gitignored, local artifacts)
 
+## Server Test Suite (Vitest + Real MongoDB)
+
+Added 107 integration tests across 3 test files, running against a real MongoDB instance (Docker) on a separate `observability_test` database.
+
+### Infrastructure
+
+- **Framework:** Vitest with explicit imports (`globals: false`), `fileParallelism: false`
+- **Database:** Real MongoDB via Docker, isolated `observability_test` database
+- **App extraction:** Refactored `index.ts` into `app.ts` (testable `createApp()` factory) + `index.ts` (server lifecycle)
+- **Test helpers:** `test/setup.ts` (DB lifecycle), `test/fixtures.ts` (data factories)
+- **Recipes:** `just server-test`, `pnpm test` / `pnpm test:watch`
+
+### Test Coverage (107 tests)
+
+- `db.test.ts` (35 tests) — event CRUD, theme CRUD, HITL response updates, chart data aggregation, filter options, connection status
+- `theme.test.ts` (40 tests) — validation (24 color fields, name format, duplicates), sanitization, CRUD, search (public filter, author bypass), export/import, stats
+- `app.test.ts` (32 tests) — all HTTP endpoints via `app.request()` (health, events, chart-data, HITL respond, theme CRUD, export/import, stats, authorization)
+
+### Files Added/Changed
+
+- `apps/server/src/app.ts` — new: `createApp()` factory with all HTTP routes
+- `apps/server/src/index.ts` — simplified: imports factory, handles WebSocket + server lifecycle
+- `apps/server/vitest.config.ts` — test configuration
+- `apps/server/src/db.test.ts`, `theme.test.ts`, `app.test.ts` — test files
+- `apps/server/src/test/setup.ts`, `test/fixtures.ts` — test infrastructure
+- `justfile` — added `server-test` recipe
+
 ## Server Runtime: Bun → Node.js (Hono + tsx)
 
 Replaced `Bun.serve()` and all Bun-specific APIs with standard Node.js runtime.

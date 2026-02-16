@@ -1,13 +1,5 @@
 # Pending Fork Improvements
 
-## Server Test Suite
-
-No tests exist yet. Add test coverage for:
-
-- `db.ts` — CRUD operations, chart data aggregation pipeline, HITL response updates
-- `index.ts` — HTTP endpoints (/health, POST /events, GET /events/recent, /api/chart-data, HITL hex ID respond), WebSocket broadcast
-- `theme.ts` — validation, search, export/import
-
 ## UI Enhancements
 
 Issues observed during the React migration:
