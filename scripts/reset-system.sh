@@ -16,8 +16,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Read ports from environment variables or use defaults
-SERVER_PORT=${SERVER_PORT:-4000}
-CLIENT_PORT=${CLIENT_PORT:-5173}
+SERVER_PORT=${SERVER_PORT:-47200}
+CLIENT_PORT=${CLIENT_PORT:-47201}
 
 echo -e "${BLUE}Configuration:${NC}"
 echo -e "  Server Port: ${GREEN}$SERVER_PORT${NC}"
@@ -63,13 +63,14 @@ ps aux | grep -E "bun.*(apps/(server|client))" | grep -v grep | awk '{print $2}'
     fi
 done
 
-# Optional: Clear SQLite WAL files
-echo -e "\n${YELLOW}Cleaning up SQLite WAL files...${NC}"
-if [ -f "$PROJECT_ROOT/apps/server/events.db-wal" ]; then
-    rm -f "$PROJECT_ROOT/apps/server/events.db-wal" "$PROJECT_ROOT/apps/server/events.db-shm"
-    echo -e "${GREEN}✅ Removed SQLite WAL files${NC}"
+# Stop MongoDB container (preserve data volume)
+echo -e "\n${YELLOW}Stopping MongoDB container...${NC}"
+cd "$PROJECT_ROOT"
+if docker compose ps --status running 2>/dev/null | grep -q mongodb; then
+    docker compose stop mongodb
+    echo -e "${GREEN}✅ MongoDB container stopped${NC}"
 else
-    echo -e "${GREEN}✅ No WAL files to clean${NC}"
+    echo -e "${GREEN}✅ MongoDB container not running${NC}"
 fi
 
 # Optional: Ask if user wants to clear the database

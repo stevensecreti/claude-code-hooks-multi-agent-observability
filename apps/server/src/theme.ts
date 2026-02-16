@@ -1,10 +1,10 @@
-import { 
-  insertTheme, 
-  updateTheme, 
-  getTheme, 
-  getThemes, 
-  deleteTheme, 
-  incrementThemeDownloadCount 
+import {
+  insertTheme,
+  updateTheme,
+  getTheme,
+  getThemes,
+  deleteTheme,
+  incrementThemeDownloadCount
 } from './db';
 import type { Theme, ThemeSearchQuery, ThemeValidationError, ApiResponse } from './types';
 
@@ -15,7 +15,7 @@ function generateId(): string {
 
 function validateTheme(theme: Partial<Theme>): ThemeValidationError[] {
   const errors: ThemeValidationError[] = [];
-  
+
   // Required fields validation
   if (!theme.name) {
     errors.push({
@@ -30,7 +30,7 @@ function validateTheme(theme: Partial<Theme>): ThemeValidationError[] {
       code: 'INVALID_FORMAT'
     });
   }
-  
+
   if (!theme.displayName) {
     errors.push({
       field: 'displayName',
@@ -38,7 +38,7 @@ function validateTheme(theme: Partial<Theme>): ThemeValidationError[] {
       code: 'REQUIRED'
     });
   }
-  
+
   if (!theme.colors) {
     errors.push({
       field: 'colors',
@@ -55,7 +55,7 @@ function validateTheme(theme: Partial<Theme>): ThemeValidationError[] {
       'accentSuccess', 'accentWarning', 'accentError', 'accentInfo',
       'shadow', 'shadowLg', 'hoverBg', 'activeBg', 'focusRing'
     ];
-    
+
     for (const colorKey of requiredColors) {
       const color = theme.colors[colorKey as keyof typeof theme.colors];
       if (!color) {
@@ -73,7 +73,7 @@ function validateTheme(theme: Partial<Theme>): ThemeValidationError[] {
       }
     }
   }
-  
+
   // Tags validation
   if (theme.tags && Array.isArray(theme.tags)) {
     for (const tag of theme.tags) {
@@ -87,7 +87,7 @@ function validateTheme(theme: Partial<Theme>): ThemeValidationError[] {
       }
     }
   }
-  
+
   return errors;
 }
 
@@ -96,18 +96,18 @@ function isValidColor(color: string): boolean {
   if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color)) {
     return true;
   }
-  
+
   // Check rgba/rgb colors
   if (/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*(\d?(?:\.\d+)?))?\)$/.test(color)) {
     return true;
   }
-  
+
   // Check named colors (basic validation)
   const namedColors = [
-    'transparent', 'black', 'white', 'red', 'green', 'blue', 
+    'transparent', 'black', 'white', 'red', 'green', 'blue',
     'yellow', 'cyan', 'magenta', 'gray', 'grey'
   ];
-  
+
   return namedColors.includes(color.toLowerCase());
 }
 
@@ -129,7 +129,7 @@ export async function createTheme(themeData: any): Promise<ApiResponse<Theme>> {
   try {
     const sanitized = sanitizeTheme(themeData);
     const errors = validateTheme(sanitized);
-    
+
     if (errors.length > 0) {
       return {
         success: false,
@@ -137,9 +137,9 @@ export async function createTheme(themeData: any): Promise<ApiResponse<Theme>> {
         validationErrors: errors
       };
     }
-    
+
     // Check if theme name already exists
-    const existingThemes = getThemes({ query: sanitized.name });
+    const existingThemes = await getThemes({ query: sanitized.name });
     if (existingThemes.some(t => t.name === sanitized.name)) {
       return {
         success: false,
@@ -151,7 +151,7 @@ export async function createTheme(themeData: any): Promise<ApiResponse<Theme>> {
         }]
       };
     }
-    
+
     const theme: Theme = {
       id: generateId(),
       name: sanitized.name!,
@@ -168,9 +168,9 @@ export async function createTheme(themeData: any): Promise<ApiResponse<Theme>> {
       rating: 0,
       ratingCount: 0
     };
-    
-    const savedTheme = insertTheme(theme);
-    
+
+    const savedTheme = await insertTheme(theme);
+
     return {
       success: true,
       data: savedTheme,
@@ -187,21 +187,21 @@ export async function createTheme(themeData: any): Promise<ApiResponse<Theme>> {
 
 export async function updateThemeById(id: string, updates: any): Promise<ApiResponse<Theme>> {
   try {
-    const existingTheme = getTheme(id);
+    const existingTheme = await getTheme(id);
     if (!existingTheme) {
       return {
         success: false,
         error: 'Theme not found'
       };
     }
-    
+
     const sanitized = sanitizeTheme(updates);
-    
+
     // Don't allow changing the name after creation
     delete sanitized.name;
-    
+
     const errors = validateTheme({ ...existingTheme, ...sanitized });
-    
+
     if (errors.length > 0) {
       return {
         success: false,
@@ -209,23 +209,23 @@ export async function updateThemeById(id: string, updates: any): Promise<ApiResp
         validationErrors: errors
       };
     }
-    
+
     const updateData = {
       ...sanitized,
       updatedAt: Date.now()
     };
-    
-    const success = updateTheme(id, updateData);
-    
+
+    const success = await updateTheme(id, updateData);
+
     if (!success) {
       return {
         success: false,
         error: 'Failed to update theme'
       };
     }
-    
-    const updatedTheme = getTheme(id);
-    
+
+    const updatedTheme = await getTheme(id);
+
     return {
       success: true,
       data: updatedTheme!,
@@ -242,20 +242,20 @@ export async function updateThemeById(id: string, updates: any): Promise<ApiResp
 
 export async function getThemeById(id: string): Promise<ApiResponse<Theme>> {
   try {
-    const theme = getTheme(id);
-    
+    const theme = await getTheme(id);
+
     if (!theme) {
       return {
         success: false,
         error: 'Theme not found'
       };
     }
-    
+
     // Increment download count for public themes
     if (theme.isPublic) {
-      incrementThemeDownloadCount(id);
+      await incrementThemeDownloadCount(id);
     }
-    
+
     return {
       success: true,
       data: theme
@@ -276,9 +276,9 @@ export async function searchThemes(query: ThemeSearchQuery): Promise<ApiResponse
       ...query,
       isPublic: query.authorId ? undefined : true
     };
-    
-    const themes = getThemes(searchQuery);
-    
+
+    const themes = await getThemes(searchQuery);
+
     return {
       success: true,
       data: themes
@@ -294,15 +294,15 @@ export async function searchThemes(query: ThemeSearchQuery): Promise<ApiResponse
 
 export async function deleteThemeById(id: string, authorId?: string): Promise<ApiResponse<void>> {
   try {
-    const theme = getTheme(id);
-    
+    const theme = await getTheme(id);
+
     if (!theme) {
       return {
         success: false,
         error: 'Theme not found'
       };
     }
-    
+
     // Only allow deletion by theme author (in a real app, you'd have proper auth)
     if (authorId && theme.authorId !== authorId) {
       return {
@@ -310,16 +310,16 @@ export async function deleteThemeById(id: string, authorId?: string): Promise<Ap
         error: 'Unauthorized - you can only delete your own themes'
       };
     }
-    
-    const success = deleteTheme(id);
-    
+
+    const success = await deleteTheme(id);
+
     if (!success) {
       return {
         success: false,
         error: 'Failed to delete theme'
       };
     }
-    
+
     return {
       success: true,
       message: 'Theme deleted successfully'
@@ -335,15 +335,15 @@ export async function deleteThemeById(id: string, authorId?: string): Promise<Ap
 
 export async function exportThemeById(id: string): Promise<ApiResponse<any>> {
   try {
-    const theme = getTheme(id);
-    
+    const theme = await getTheme(id);
+
     if (!theme) {
       return {
         success: false,
         error: 'Theme not found'
       };
     }
-    
+
     const exportData = {
       version: '1.0.0',
       theme: {
@@ -360,7 +360,7 @@ export async function exportThemeById(id: string): Promise<ApiResponse<any>> {
       exportedAt: new Date().toISOString(),
       exportedBy: 'observability-system'
     };
-    
+
     return {
       success: true,
       data: exportData
@@ -382,14 +382,14 @@ export async function importTheme(importData: any, authorId?: string): Promise<A
         error: 'Invalid import data - missing theme'
       };
     }
-    
+
     const themeData = {
       ...importData.theme,
       authorId,
       authorName: importData.theme.authorName || 'Imported',
       isPublic: false // Imported themes are private by default
     };
-    
+
     return await createTheme(themeData);
   } catch (error) {
     console.error('Error importing theme:', error);
@@ -403,19 +403,19 @@ export async function importTheme(importData: any, authorId?: string): Promise<A
 // Utility function to get theme statistics
 export async function getThemeStats(): Promise<ApiResponse<any>> {
   try {
-    const allThemes = getThemes();
-    const publicThemes = getThemes({ isPublic: true });
-    
+    const allThemes = await getThemes();
+    const publicThemes = await getThemes({ isPublic: true });
+
     const stats = {
       totalThemes: allThemes.length,
       publicThemes: publicThemes.length,
       privateThemes: allThemes.length - publicThemes.length,
       totalDownloads: allThemes.reduce((sum, theme) => sum + (theme.downloadCount || 0), 0),
-      averageRating: allThemes.length > 0 
-        ? allThemes.reduce((sum, theme) => sum + (theme.rating || 0), 0) / allThemes.length 
+      averageRating: allThemes.length > 0
+        ? allThemes.reduce((sum, theme) => sum + (theme.rating || 0), 0) / allThemes.length
         : 0
     };
-    
+
     return {
       success: true,
       data: stats

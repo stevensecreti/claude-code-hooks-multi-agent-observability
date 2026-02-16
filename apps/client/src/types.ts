@@ -55,7 +55,7 @@ export interface EventToolInput {
 }
 
 export interface HookEvent {
-	id?: number;
+	id?: string;
 	source_app: string;
 	session_id: string;
 	hook_event_type: string;

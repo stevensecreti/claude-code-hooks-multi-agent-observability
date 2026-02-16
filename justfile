@@ -68,14 +68,17 @@ install: server-install client-install
 
 # ─── Database ────────────────────────────────────────────
 
-# Clear SQLite WAL files
-db-clean-wal:
-    rm -f {{project_root}}/apps/server/events.db-wal {{project_root}}/apps/server/events.db-shm
-    @echo "WAL files removed"
+# Start MongoDB container
+db-start:
+    docker compose up -d mongodb
 
-# Delete the entire events database
+# Stop MongoDB container
+db-stop:
+    docker compose stop mongodb
+
+# Drop and recreate the MongoDB database
 db-reset:
-    rm -f {{project_root}}/apps/server/events.db {{project_root}}/apps/server/events.db-wal {{project_root}}/apps/server/events.db-shm
+    docker compose exec -T mongodb mongosh --eval "use observability; db.dropDatabase();" --quiet
     @echo "Database reset"
 
 # ─── Testing ─────────────────────────────────────────────

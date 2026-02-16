@@ -26,7 +26,7 @@ export interface HumanInTheLoopStatus {
 }
 
 export interface HookEvent {
-  id?: number;
+  id?: string;
   source_app: string;
   session_id: string;
   hook_event_type: string;
@@ -136,3 +136,25 @@ export interface ApiResponse<T = any> {
   message?: string;
   validationErrors?: ThemeValidationError[];
 }
+
+// Chart data types (server-side aggregation)
+export interface ChartDataPoint {
+  timestamp: number;
+  count: number;
+  eventTypes: Record<string, number>;
+  toolEvents?: Record<string, number>;
+  sessions: Record<string, number>;
+}
+
+export interface ChartDataResponse {
+  range: string;
+  bucketSize: number;
+  dataPoints: ChartDataPoint[];
+}
+
+export const TIME_RANGE_CONFIG = {
+  '1m':  { duration: 60_000,  bucketSize: 1_000,  maxPoints: 60 },
+  '3m':  { duration: 180_000, bucketSize: 3_000,  maxPoints: 60 },
+  '5m':  { duration: 300_000, bucketSize: 5_000,  maxPoints: 60 },
+  '10m': { duration: 600_000, bucketSize: 10_000, maxPoints: 60 },
+} as const;

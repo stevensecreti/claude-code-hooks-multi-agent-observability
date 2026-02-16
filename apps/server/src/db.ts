@@ -1,387 +1,386 @@
-import { Database } from 'bun:sqlite';
-import type { HookEvent, FilterOptions, Theme, ThemeSearchQuery } from './types';
+import { MongoClient, ObjectId } from 'mongodb';
+import type { HookEvent, FilterOptions, Theme, ThemeSearchQuery, ChartDataPoint } from './types';
+import { TIME_RANGE_CONFIG } from './types';
 
-let db: Database;
+let client: MongoClient;
+let db: ReturnType<MongoClient['db']>;
 
-export function initDatabase(): void {
-  db = new Database('events.db');
-  
-  // Enable WAL mode for better concurrent performance
-  db.exec('PRAGMA journal_mode = WAL');
-  db.exec('PRAGMA synchronous = NORMAL');
-  
-  // Create events table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      source_app TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      hook_event_type TEXT NOT NULL,
-      payload TEXT NOT NULL,
-      chat TEXT,
-      summary TEXT,
-      timestamp INTEGER NOT NULL
-    )
-  `);
-  
-  // Check if chat column exists, add it if not (for migration)
-  try {
-    const columns = db.prepare("PRAGMA table_info(events)").all() as any[];
-    const hasChatColumn = columns.some((col: any) => col.name === 'chat');
-    if (!hasChatColumn) {
-      db.exec('ALTER TABLE events ADD COLUMN chat TEXT');
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:47217/observability';
+
+export async function initDatabase(): Promise<void> {
+  const maxRetries = 10;
+  const retryDelay = 2000;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      client = new MongoClient(MONGODB_URI);
+      await client.connect();
+      db = client.db();
+
+      // Create indexes for events
+      const events = db.collection('events');
+      await events.createIndex({ source_app: 1 });
+      await events.createIndex({ session_id: 1 });
+      await events.createIndex({ hook_event_type: 1 });
+      await events.createIndex({ timestamp: -1 });
+      await events.createIndex({ source_app: 1, session_id: 1, timestamp: -1 });
+
+      // Create indexes for themes
+      const themes = db.collection('themes');
+      await themes.createIndex({ name: 1 }, { unique: true });
+      await themes.createIndex({ isPublic: 1 });
+      await themes.createIndex({ createdAt: -1 });
+
+      // Create indexes for theme_shares
+      const themeShares = db.collection('theme_shares');
+      await themeShares.createIndex({ shareToken: 1 }, { unique: true });
+
+      // Create indexes for theme_ratings
+      const themeRatings = db.collection('theme_ratings');
+      await themeRatings.createIndex({ themeId: 1 });
+      await themeRatings.createIndex({ themeId: 1, userId: 1 }, { unique: true });
+
+      console.log('Connected to MongoDB');
+      return;
+    } catch (error) {
+      console.error(`MongoDB connection attempt ${attempt}/${maxRetries} failed:`, error);
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      } else {
+        throw new Error(`Failed to connect to MongoDB after ${maxRetries} attempts`);
+      }
     }
-
-    // Check if summary column exists, add it if not (for migration)
-    const hasSummaryColumn = columns.some((col: any) => col.name === 'summary');
-    if (!hasSummaryColumn) {
-      db.exec('ALTER TABLE events ADD COLUMN summary TEXT');
-    }
-
-    // Check if humanInTheLoop column exists, add it if not (for migration)
-    const hasHumanInTheLoopColumn = columns.some((col: any) => col.name === 'humanInTheLoop');
-    if (!hasHumanInTheLoopColumn) {
-      db.exec('ALTER TABLE events ADD COLUMN humanInTheLoop TEXT');
-    }
-
-    // Check if humanInTheLoopStatus column exists, add it if not (for migration)
-    const hasHumanInTheLoopStatusColumn = columns.some((col: any) => col.name === 'humanInTheLoopStatus');
-    if (!hasHumanInTheLoopStatusColumn) {
-      db.exec('ALTER TABLE events ADD COLUMN humanInTheLoopStatus TEXT');
-    }
-
-    // Check if model_name column exists, add it if not (for migration)
-    const hasModelNameColumn = columns.some((col: any) => col.name === 'model_name');
-    if (!hasModelNameColumn) {
-      db.exec('ALTER TABLE events ADD COLUMN model_name TEXT');
-    }
-  } catch (error) {
-    // If the table doesn't exist yet, the CREATE TABLE above will handle it
   }
-  
-  // Create indexes for common queries
-  db.exec('CREATE INDEX IF NOT EXISTS idx_source_app ON events(source_app)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_session_id ON events(session_id)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_hook_event_type ON events(hook_event_type)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_timestamp ON events(timestamp)');
-  
-  // Create themes table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS themes (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
-      displayName TEXT NOT NULL,
-      description TEXT,
-      colors TEXT NOT NULL,
-      isPublic INTEGER NOT NULL DEFAULT 0,
-      authorId TEXT,
-      authorName TEXT,
-      createdAt INTEGER NOT NULL,
-      updatedAt INTEGER NOT NULL,
-      tags TEXT,
-      downloadCount INTEGER DEFAULT 0,
-      rating REAL DEFAULT 0,
-      ratingCount INTEGER DEFAULT 0
-    )
-  `);
-  
-  // Create theme shares table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS theme_shares (
-      id TEXT PRIMARY KEY,
-      themeId TEXT NOT NULL,
-      shareToken TEXT NOT NULL UNIQUE,
-      expiresAt INTEGER,
-      isPublic INTEGER NOT NULL DEFAULT 0,
-      allowedUsers TEXT,
-      createdAt INTEGER NOT NULL,
-      accessCount INTEGER DEFAULT 0,
-      FOREIGN KEY (themeId) REFERENCES themes (id) ON DELETE CASCADE
-    )
-  `);
-  
-  // Create theme ratings table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS theme_ratings (
-      id TEXT PRIMARY KEY,
-      themeId TEXT NOT NULL,
-      userId TEXT NOT NULL,
-      rating INTEGER NOT NULL,
-      comment TEXT,
-      createdAt INTEGER NOT NULL,
-      UNIQUE(themeId, userId),
-      FOREIGN KEY (themeId) REFERENCES themes (id) ON DELETE CASCADE
-    )
-  `);
-  
-  // Create indexes for theme tables
-  db.exec('CREATE INDEX IF NOT EXISTS idx_themes_name ON themes(name)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_themes_isPublic ON themes(isPublic)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_themes_createdAt ON themes(createdAt)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_theme_shares_token ON theme_shares(shareToken)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_theme_ratings_theme ON theme_ratings(themeId)');
 }
 
-export function insertEvent(event: HookEvent): HookEvent {
-  const stmt = db.prepare(`
-    INSERT INTO events (source_app, session_id, hook_event_type, payload, chat, summary, timestamp, humanInTheLoop, humanInTheLoopStatus, model_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
+export async function insertEvent(event: HookEvent): Promise<HookEvent> {
   const timestamp = event.timestamp || Date.now();
 
-  // Initialize humanInTheLoopStatus to pending if humanInTheLoop exists
   let humanInTheLoopStatus = event.humanInTheLoopStatus;
   if (event.humanInTheLoop && !humanInTheLoopStatus) {
     humanInTheLoopStatus = { status: 'pending' };
   }
 
-  const result = stmt.run(
-    event.source_app,
-    event.session_id,
-    event.hook_event_type,
-    JSON.stringify(event.payload),
-    event.chat ? JSON.stringify(event.chat) : null,
-    event.summary || null,
+  const doc = {
+    source_app: event.source_app,
+    session_id: event.session_id,
+    hook_event_type: event.hook_event_type,
+    payload: event.payload,
+    chat: event.chat || null,
+    summary: event.summary || null,
     timestamp,
-    event.humanInTheLoop ? JSON.stringify(event.humanInTheLoop) : null,
-    humanInTheLoopStatus ? JSON.stringify(humanInTheLoopStatus) : null,
-    event.model_name || null
-  );
+    humanInTheLoop: event.humanInTheLoop || null,
+    humanInTheLoopStatus: humanInTheLoopStatus || null,
+    model_name: event.model_name || null,
+  };
+
+  const result = await db.collection('events').insertOne(doc);
 
   return {
     ...event,
-    id: result.lastInsertRowid as number,
+    id: result.insertedId.toHexString(),
     timestamp,
-    humanInTheLoopStatus
+    humanInTheLoopStatus,
   };
 }
 
-export function getFilterOptions(): FilterOptions {
-  const sourceApps = db.prepare('SELECT DISTINCT source_app FROM events ORDER BY source_app').all() as { source_app: string }[];
-  const sessionIds = db.prepare('SELECT DISTINCT session_id FROM events ORDER BY session_id DESC LIMIT 300').all() as { session_id: string }[];
-  const hookEventTypes = db.prepare('SELECT DISTINCT hook_event_type FROM events ORDER BY hook_event_type').all() as { hook_event_type: string }[];
-  
+export async function getFilterOptions(): Promise<FilterOptions> {
+  const events = db.collection('events');
+
+  const [sourceApps, sessionIds, hookEventTypes] = await Promise.all([
+    events.distinct('source_app'),
+    events.distinct('session_id'),
+    events.distinct('hook_event_type'),
+  ]);
+
   return {
-    source_apps: sourceApps.map(row => row.source_app),
-    session_ids: sessionIds.map(row => row.session_id),
-    hook_event_types: hookEventTypes.map(row => row.hook_event_type)
+    source_apps: sourceApps.sort(),
+    session_ids: sessionIds.slice(0, 300),
+    hook_event_types: hookEventTypes.sort(),
   };
 }
 
-export function getRecentEvents(limit: number = 300): HookEvent[] {
-  const stmt = db.prepare(`
-    SELECT id, source_app, session_id, hook_event_type, payload, chat, summary, timestamp, humanInTheLoop, humanInTheLoopStatus, model_name
-    FROM events
-    ORDER BY timestamp DESC
-    LIMIT ?
-  `);
-
-  const rows = stmt.all(limit) as any[];
+export async function getRecentEvents(limit: number = 300): Promise<HookEvent[]> {
+  const rows = await db.collection('events')
+    .find()
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .toArray();
 
   return rows.map(row => ({
-    id: row.id,
+    id: row._id.toHexString(),
     source_app: row.source_app,
     session_id: row.session_id,
     hook_event_type: row.hook_event_type,
-    payload: JSON.parse(row.payload),
-    chat: row.chat ? JSON.parse(row.chat) : undefined,
+    payload: row.payload,
+    chat: row.chat || undefined,
     summary: row.summary || undefined,
     timestamp: row.timestamp,
-    humanInTheLoop: row.humanInTheLoop ? JSON.parse(row.humanInTheLoop) : undefined,
-    humanInTheLoopStatus: row.humanInTheLoopStatus ? JSON.parse(row.humanInTheLoopStatus) : undefined,
-    model_name: row.model_name || undefined
+    humanInTheLoop: row.humanInTheLoop || undefined,
+    humanInTheLoopStatus: row.humanInTheLoopStatus || undefined,
+    model_name: row.model_name || undefined,
   })).reverse();
 }
 
 // Theme database functions
-export function insertTheme(theme: Theme): Theme {
-  const stmt = db.prepare(`
-    INSERT INTO themes (id, name, displayName, description, colors, isPublic, authorId, authorName, createdAt, updatedAt, tags, downloadCount, rating, ratingCount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  
-  stmt.run(
-    theme.id,
-    theme.name,
-    theme.displayName,
-    theme.description || null,
-    JSON.stringify(theme.colors),
-    theme.isPublic ? 1 : 0,
-    theme.authorId || null,
-    theme.authorName || null,
-    theme.createdAt,
-    theme.updatedAt,
-    JSON.stringify(theme.tags),
-    theme.downloadCount || 0,
-    theme.rating || 0,
-    theme.ratingCount || 0
-  );
-  
+export async function insertTheme(theme: Theme): Promise<Theme> {
+  await db.collection('themes').insertOne({
+    _id: theme.id,
+    name: theme.name,
+    displayName: theme.displayName,
+    description: theme.description || null,
+    colors: theme.colors,
+    isPublic: theme.isPublic,
+    authorId: theme.authorId || null,
+    authorName: theme.authorName || null,
+    createdAt: theme.createdAt,
+    updatedAt: theme.updatedAt,
+    tags: theme.tags,
+    downloadCount: theme.downloadCount || 0,
+    rating: theme.rating || 0,
+    ratingCount: theme.ratingCount || 0,
+  } as any);
+
   return theme;
 }
 
-export function updateTheme(id: string, updates: Partial<Theme>): boolean {
+export async function updateTheme(id: string, updates: Partial<Theme>): Promise<boolean> {
   const allowedFields = ['displayName', 'description', 'colors', 'isPublic', 'updatedAt', 'tags'];
-  const setClause = Object.keys(updates)
-    .filter(key => allowedFields.includes(key))
-    .map(key => `${key} = ?`)
-    .join(', ');
-  
-  if (!setClause) return false;
-  
-  const values = Object.keys(updates)
-    .filter(key => allowedFields.includes(key))
-    .map(key => {
-      if (key === 'colors' || key === 'tags') {
-        return JSON.stringify(updates[key as keyof Theme]);
-      }
-      if (key === 'isPublic') {
-        return updates[key as keyof Theme] ? 1 : 0;
-      }
-      return updates[key as keyof Theme];
-    });
-  
-  const stmt = db.prepare(`UPDATE themes SET ${setClause} WHERE id = ?`);
-  const result = stmt.run(...values, id);
-  
-  return result.changes > 0;
+  const setDoc: Record<string, any> = {};
+
+  for (const key of Object.keys(updates)) {
+    if (allowedFields.includes(key)) {
+      setDoc[key] = updates[key as keyof Theme];
+    }
+  }
+
+  if (Object.keys(setDoc).length === 0) return false;
+
+  const result = await db.collection('themes').updateOne(
+    { _id: id as any },
+    { $set: setDoc }
+  );
+
+  return result.modifiedCount > 0;
 }
 
-export function getTheme(id: string): Theme | null {
-  const stmt = db.prepare('SELECT * FROM themes WHERE id = ?');
-  const row = stmt.get(id) as any;
-  
+export async function getTheme(id: string): Promise<Theme | null> {
+  const row = await db.collection('themes').findOne({ _id: id as any });
+
   if (!row) return null;
-  
+
   return {
-    id: row.id,
+    id: row._id as string,
     name: row.name,
     displayName: row.displayName,
     description: row.description,
-    colors: JSON.parse(row.colors),
-    isPublic: Boolean(row.isPublic),
+    colors: row.colors,
+    isPublic: row.isPublic,
     authorId: row.authorId,
     authorName: row.authorName,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    tags: JSON.parse(row.tags || '[]'),
+    tags: row.tags || [],
     downloadCount: row.downloadCount,
     rating: row.rating,
-    ratingCount: row.ratingCount
+    ratingCount: row.ratingCount,
   };
 }
 
-export function getThemes(query: ThemeSearchQuery = {}): Theme[] {
-  let sql = 'SELECT * FROM themes WHERE 1=1';
-  const params: any[] = [];
-  
+export async function getThemes(query: ThemeSearchQuery = {}): Promise<Theme[]> {
+  const filter: Record<string, any> = {};
+
   if (query.isPublic !== undefined) {
-    sql += ' AND isPublic = ?';
-    params.push(query.isPublic ? 1 : 0);
+    filter.isPublic = query.isPublic;
   }
-  
+
   if (query.authorId) {
-    sql += ' AND authorId = ?';
-    params.push(query.authorId);
+    filter.authorId = query.authorId;
   }
-  
+
   if (query.query) {
-    sql += ' AND (name LIKE ? OR displayName LIKE ? OR description LIKE ?)';
-    const searchTerm = `%${query.query}%`;
-    params.push(searchTerm, searchTerm, searchTerm);
+    const searchRegex = { $regex: query.query, $options: 'i' };
+    filter.$or = [
+      { name: searchRegex },
+      { displayName: searchRegex },
+      { description: searchRegex },
+    ];
   }
-  
-  // Add sorting
-  const sortBy = query.sortBy || 'created';
-  const sortOrder = query.sortOrder || 'desc';
-  const sortColumn = {
+
+  const sortColumn: Record<string, string> = {
     name: 'name',
     created: 'createdAt',
     updated: 'updatedAt',
     downloads: 'downloadCount',
-    rating: 'rating'
-  }[sortBy] || 'createdAt';
-  
-  sql += ` ORDER BY ${sortColumn} ${sortOrder.toUpperCase()}`;
-  
-  // Add pagination
+    rating: 'rating',
+  };
+
+  const sortField = sortColumn[query.sortBy || 'created'] || 'createdAt';
+  const sortOrder = (query.sortOrder || 'desc') === 'asc' ? 1 : -1;
+
+  let cursor = db.collection('themes')
+    .find(filter)
+    .sort({ [sortField]: sortOrder });
+
   if (query.limit) {
-    sql += ' LIMIT ?';
-    params.push(query.limit);
-    
+    cursor = cursor.limit(query.limit);
     if (query.offset) {
-      sql += ' OFFSET ?';
-      params.push(query.offset);
+      cursor = cursor.skip(query.offset);
     }
   }
-  
-  const stmt = db.prepare(sql);
-  const rows = stmt.all(...params) as any[];
-  
+
+  const rows = await cursor.toArray();
+
   return rows.map(row => ({
-    id: row.id,
+    id: row._id as string,
     name: row.name,
     displayName: row.displayName,
     description: row.description,
-    colors: JSON.parse(row.colors),
-    isPublic: Boolean(row.isPublic),
+    colors: row.colors,
+    isPublic: row.isPublic,
     authorId: row.authorId,
     authorName: row.authorName,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    tags: JSON.parse(row.tags || '[]'),
+    tags: row.tags || [],
     downloadCount: row.downloadCount,
     rating: row.rating,
-    ratingCount: row.ratingCount
+    ratingCount: row.ratingCount,
   }));
 }
 
-export function deleteTheme(id: string): boolean {
-  const stmt = db.prepare('DELETE FROM themes WHERE id = ?');
-  const result = stmt.run(id);
-  return result.changes > 0;
+export async function deleteTheme(id: string): Promise<boolean> {
+  const result = await db.collection('themes').deleteOne({ _id: id as any });
+  return result.deletedCount > 0;
 }
 
-export function incrementThemeDownloadCount(id: string): boolean {
-  const stmt = db.prepare('UPDATE themes SET downloadCount = downloadCount + 1 WHERE id = ?');
-  const result = stmt.run(id);
-  return result.changes > 0;
+export async function incrementThemeDownloadCount(id: string): Promise<boolean> {
+  const result = await db.collection('themes').updateOne(
+    { _id: id as any },
+    { $inc: { downloadCount: 1 } }
+  );
+  return result.modifiedCount > 0;
 }
 
 // HITL helper functions
-export function updateEventHITLResponse(id: number, response: any): HookEvent | null {
+export async function updateEventHITLResponse(id: string, response: any): Promise<HookEvent | null> {
   const status = {
     status: 'responded',
     respondedAt: response.respondedAt,
-    response
+    response,
   };
 
-  const stmt = db.prepare('UPDATE events SET humanInTheLoopStatus = ? WHERE id = ?');
-  stmt.run(JSON.stringify(status), id);
+  let objectId: ObjectId;
+  try {
+    objectId = new ObjectId(id);
+  } catch {
+    return null;
+  }
 
-  const selectStmt = db.prepare(`
-    SELECT id, source_app, session_id, hook_event_type, payload, chat, summary, timestamp, humanInTheLoop, humanInTheLoopStatus, model_name
-    FROM events
-    WHERE id = ?
-  `);
-  const row = selectStmt.get(id) as any;
+  await db.collection('events').updateOne(
+    { _id: objectId },
+    { $set: { humanInTheLoopStatus: status } }
+  );
+
+  const row = await db.collection('events').findOne({ _id: objectId });
 
   if (!row) return null;
 
   return {
-    id: row.id,
+    id: row._id.toHexString(),
     source_app: row.source_app,
     session_id: row.session_id,
     hook_event_type: row.hook_event_type,
-    payload: JSON.parse(row.payload),
-    chat: row.chat ? JSON.parse(row.chat) : undefined,
+    payload: row.payload,
+    chat: row.chat || undefined,
     summary: row.summary || undefined,
     timestamp: row.timestamp,
-    humanInTheLoop: row.humanInTheLoop ? JSON.parse(row.humanInTheLoop) : undefined,
-    humanInTheLoopStatus: row.humanInTheLoopStatus ? JSON.parse(row.humanInTheLoopStatus) : undefined,
-    model_name: row.model_name || undefined
+    humanInTheLoop: row.humanInTheLoop || undefined,
+    humanInTheLoopStatus: row.humanInTheLoopStatus || undefined,
+    model_name: row.model_name || undefined,
   };
 }
 
-export { db };
+// Chart data aggregation
+export async function getChartData(range: string, agentId?: string): Promise<ChartDataPoint[]> {
+  const config = TIME_RANGE_CONFIG[range as keyof typeof TIME_RANGE_CONFIG];
+  if (!config) return [];
+
+  const cutoff = Date.now() - config.duration;
+  const bucketSize = config.bucketSize;
+
+  const matchStage: Record<string, any> = { timestamp: { $gte: cutoff } };
+
+  if (agentId) {
+    const parts = agentId.split(':');
+    if (parts.length === 2) {
+      matchStage.source_app = parts[0];
+      matchStage.session_id = { $regex: `^${parts[1]}` };
+    }
+  }
+
+  const pipeline = [
+    { $match: matchStage },
+    {
+      $group: {
+        _id: { $subtract: ['$timestamp', { $mod: ['$timestamp', bucketSize] }] },
+        count: { $sum: 1 },
+        eventTypes: { $push: '$hook_event_type' },
+        toolInfos: {
+          $push: {
+            eventType: '$hook_event_type',
+            toolName: '$payload.tool_name',
+          },
+        },
+        sessionIds: { $push: '$session_id' },
+      },
+    },
+    { $sort: { _id: 1 as const } },
+  ];
+
+  const results = await db.collection('events').aggregate(pipeline).toArray();
+
+  // Post-process arrays into frequency maps
+  return results.map(row => {
+    const eventTypes: Record<string, number> = {};
+    for (const et of row.eventTypes) {
+      eventTypes[et] = (eventTypes[et] || 0) + 1;
+    }
+
+    const toolEvents: Record<string, number> = {};
+    for (const info of row.toolInfos) {
+      if (info.toolName) {
+        const key = `${info.eventType}:${info.toolName}`;
+        toolEvents[key] = (toolEvents[key] || 0) + 1;
+      }
+    }
+
+    const sessions: Record<string, number> = {};
+    for (const sid of row.sessionIds) {
+      sessions[sid] = (sessions[sid] || 0) + 1;
+    }
+
+    return {
+      timestamp: row._id,
+      count: row.count,
+      eventTypes,
+      toolEvents,
+      sessions,
+    };
+  });
+}
+
+export function isConnected(): boolean {
+  try {
+    return client !== undefined && client.topology !== undefined && client.topology.isConnected();
+  } catch {
+    return false;
+  }
+}
+
+export async function closeDatabase(): Promise<void> {
+  if (client) {
+    await client.close();
+    console.log('MongoDB connection closed');
+  }
+}

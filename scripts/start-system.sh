@@ -54,6 +54,24 @@ kill_port() {
 kill_port $SERVER_PORT "server"
 kill_port $CLIENT_PORT "client"
 
+# Start MongoDB
+echo -e "\n${GREEN}Starting MongoDB...${NC}"
+cd "$PROJECT_ROOT"
+docker compose up -d >> /dev/null 2>&1
+
+# Wait for MongoDB to be healthy
+echo -e "${YELLOW}Waiting for MongoDB to be ready...${NC}"
+for i in {1..15}; do
+    if docker compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" --quiet > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ MongoDB is ready!${NC}"
+        break
+    fi
+    if [ "$i" -eq 15 ]; then
+        echo -e "${RED}⚠️ MongoDB may not be ready yet, continuing...${NC}"
+    fi
+    sleep 1
+done
+
 # Start server
 echo -e "\n${GREEN}Starting server on port $SERVER_PORT...${NC}"
 cd "$PROJECT_ROOT/apps/server"
@@ -107,6 +125,7 @@ echo -e "${BLUE}Press Ctrl+C to stop both processes${NC}"
 # Function to cleanup on exit
 cleanup() {
     echo -e "\n${YELLOW}Shutting down...${NC}"
+    docker compose stop
     kill $SERVER_PID 2>/dev/null
     kill $CLIENT_PID 2>/dev/null
     echo -e "${GREEN}✅ Stopped all processes${NC}"

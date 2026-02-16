@@ -50,6 +50,10 @@ if [ ! -d "$REPO_ROOT/apps/client/node_modules" ]; then
     cd "$REPO_ROOT/apps/client" && pnpm install >> "$LOGFILE" 2>&1
 fi
 
+# Ensure MongoDB is running
+cd "$REPO_ROOT"
+docker compose -f "$REPO_ROOT/docker-compose.yml" up -d >> "$LOGFILE" 2>&1
+
 # Start server
 cd "$REPO_ROOT/apps/server"
 SERVER_PORT=$SERVER_PORT nohup bun run dev >> "$LOGFILE" 2>&1 &
