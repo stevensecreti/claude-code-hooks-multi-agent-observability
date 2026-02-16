@@ -220,7 +220,7 @@ export function EventTimeline({
 				<Flex flexDirection="column" gap={{ base: "1.5", md: "2" }}>
 					{filteredEvents.map((event) => (
 						<Box
-							key={`${event.id}-${event.timestamp}`}
+							key={event.id}
 							css={{
 								animation: "eventEnter 0.3s ease",
 							}}

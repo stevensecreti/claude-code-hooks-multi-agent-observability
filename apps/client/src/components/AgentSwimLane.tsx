@@ -88,8 +88,8 @@ export function AgentSwimLane({
 }: AgentSwimLaneProps) {
 	const processedEventIds = useRef<Set<string>>(new Set());
 
-	const appName = agentName.split(":")[0];
-	const sessionId = agentName.split(":")[1];
+	const appName = agentName.split(":")[0] || "";
+	const sessionId = agentName.split(":")[1] || "";
 
 	const {
 		dataPoints,
@@ -102,11 +102,14 @@ export function AgentSwimLane({
 	// Get model name from most recent event for this agent
 	const modelName = useMemo(() => {
 		const [targetApp, targetSession] = agentName.split(":");
+		if (!targetApp || !targetSession) return null;
+
 		const agentEvents = events
 			.filter(
 				(e) =>
 					e.source_app === targetApp &&
-          e.session_id.slice(0, 8) === targetSession,
+					e.session_id &&
+					e.session_id.slice(0, 8) === targetSession,
 			)
 			.filter((e) => e.model_name);
 
@@ -121,13 +124,18 @@ export function AgentSwimLane({
 
 	// Process events
 	useEffect(() => {
-		const [targetApp, targetSession] = agentName.split(":");
+		const parts = agentName.split(":");
+		const targetApp = parts[0];
+		const targetSession = parts[1];
+
+		if (!targetApp || !targetSession) return;
+
 		const newEvents: HookEvent[] = [];
 
 		events.forEach((event) => {
-			const key = `${event.id}-${event.timestamp}`;
-			if (!processedEventIds.current.has(key)) {
-				processedEventIds.current.add(key);
+			// Use just event.id for deduplication (MongoDB ObjectIds are unique)
+			if (event.id && !processedEventIds.current.has(event.id)) {
+				processedEventIds.current.add(event.id);
 				newEvents.push(event);
 			}
 		});
@@ -135,16 +143,17 @@ export function AgentSwimLane({
 		newEvents.forEach((event) => {
 			if (
 				event.hook_event_type !== "refresh" &&
-        event.hook_event_type !== "initial" &&
-        event.source_app === targetApp &&
-        event.session_id.slice(0, 8) === targetSession
+				event.hook_event_type !== "initial" &&
+				event.source_app === targetApp &&
+				event.session_id &&
+				event.session_id.slice(0, 8) === targetSession
 			) {
 				addEvent(event);
 			}
 		});
 
 		// Cleanup old IDs
-		const currentIds = new Set(events.map((e) => `${e.id}-${e.timestamp}`));
+		const currentIds = new Set(events.filter((e) => e.id).map((e) => e.id as string));
 		processedEventIds.current.forEach((id) => {
 			if (!currentIds.has(id)) processedEventIds.current.delete(id);
 		});

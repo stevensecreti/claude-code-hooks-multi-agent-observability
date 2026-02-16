@@ -17,6 +17,12 @@ function eventReducer(state: EventState, action: EventAction): EventState {
 		case "SET_INITIAL":
 			return { events: action.events.slice(-maxEvents) };
 		case "ADD_EVENT": {
+			// Check if event already exists (deduplicate by ID)
+			const eventExists = state.events.some((e) => e.id === action.event.id);
+			if (eventExists) {
+				return state; // Skip duplicate
+			}
+
 			const newEvents = [...state.events, action.event];
 			if (newEvents.length > maxEvents) {
 				return { events: newEvents.slice(newEvents.length - maxEvents + 10) };
