@@ -43,6 +43,10 @@ server-prod:
 server-typecheck:
     cd {{project_root}}/apps/server && pnpm run typecheck
 
+# Run server tests (requires Docker MongoDB)
+server-test *args:
+    cd {{project_root}}/apps/server && pnpm run test {{args}}
+
 # ─── Client (React + Chakra UI v3 + Vite, port 47201) ────
 
 # Install client dependencies
